@@ -1,0 +1,15 @@
+# Copy this workflow into your agent repository and replace the demo provider
+# with your webhook/OpenAI-compatible agent configuration.
+name: Agent Proof gate
+on: [pull_request]
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install agent-proof
+      - run: agentproof gate evals/production.json --provider webhook --webhook-url "$AGENT_URL" --min-success .97 --max-critical 0 --github-summary
+        env:
+          AGENT_URL: ${{ secrets.AGENT_URL }}
