@@ -9,7 +9,7 @@ from .models import CaseResult, Economics, EvalPack, GateResult, RunMetrics, Run
 from .providers import run_agent
 
 
-async def evaluate(pack: EvalPack, request: RunRequest, concurrency: int = 5) -> RunRecord:
+async def evaluate(pack: EvalPack, request: RunRequest, concurrency: int = 8) -> RunRecord:
     semaphore = asyncio.Semaphore(max(1, concurrency))
 
     async def one(case):
@@ -25,6 +25,8 @@ async def evaluate(pack: EvalPack, request: RunRequest, concurrency: int = 5) ->
                 title=case.title,
                 input=case.input,
                 expected=case.expected,
+                tags=case.tags,
+                failure_cost_eur=case.failure_cost_eur,
                 output=output,
                 grade=grade,
             )
@@ -52,16 +54,22 @@ def compute_metrics(cases: list[CaseResult], economics: Economics) -> RunMetrics
     score = sum(c.grade.score for c in cases) / total
     latency = sum(c.output.latency_ms for c in cases) / total
     avg_cost = sum(c.output.estimated_cost_eur for c in cases) / total
-    escalations = sum(1 for c in cases if c.output.parsed.get("decision") == "review")
+    escalations = sum(
+        1
+        for c in cases
+        if any(word in str(c.output.parsed.get("decision", "")).lower() for word in ("review", "escalate"))
+    )
+    observed_failure_cost = sum(c.failure_cost_eur for c in cases if not c.grade.passed)
+    failure_cost_per_case = observed_failure_cost / total
 
     human_cost_per_case = economics.human_minutes_per_case / 60 * economics.human_hourly_cost_eur
     annual_human = human_cost_per_case * economics.annual_case_volume
     annual_agent = avg_cost * economics.annual_case_volume
     annual_savings = annual_human - annual_agent
-    first_year = annual_savings - economics.implementation_cost_eur
-    roi = None
-    if economics.implementation_cost_eur > 0:
-        roi = first_year / economics.implementation_cost_eur
+    annual_failure_exposure = failure_cost_per_case * economics.annual_case_volume
+    risk_adjusted_value = annual_savings - annual_failure_exposure
+    first_year = risk_adjusted_value - economics.implementation_cost_eur
+    roi = first_year / economics.implementation_cost_eur if economics.implementation_cost_eur > 0 else None
 
     return RunMetrics(
         total_cases=len(cases),
@@ -78,24 +86,20 @@ def compute_metrics(cases: list[CaseResult], economics: Economics) -> RunMetrics
         estimated_annual_savings_eur=annual_savings,
         first_year_net_savings_eur=first_year,
         roi_multiple=roi,
+        estimated_failure_cost_per_case_eur=failure_cost_per_case,
+        annualized_failure_exposure_eur=annual_failure_exposure,
+        risk_adjusted_annual_value_eur=risk_adjusted_value,
     )
 
 
 def evaluate_gate(metrics: RunMetrics, request: RunRequest) -> GateResult:
     reasons: list[str] = []
     if metrics.success_rate < request.gate.min_success_rate:
-        reasons.append(
-            f"success rate {metrics.success_rate:.1%} is below required {request.gate.min_success_rate:.1%}"
-        )
+        reasons.append(f"success rate {metrics.success_rate:.1%} is below required {request.gate.min_success_rate:.1%}")
     if metrics.critical_failure_rate > request.gate.max_critical_failure_rate:
-        reasons.append(
-            f"critical failure rate {metrics.critical_failure_rate:.1%} exceeds allowed {request.gate.max_critical_failure_rate:.1%}"
-        )
-    if (
-        request.gate.max_agent_cost_per_case_eur is not None
-        and metrics.agent_cost_per_case_eur > request.gate.max_agent_cost_per_case_eur
-    ):
-        reasons.append(
-            f"agent cost €{metrics.agent_cost_per_case_eur:.4f}/case exceeds €{request.gate.max_agent_cost_per_case_eur:.4f}"
-        )
+        reasons.append(f"critical failure rate {metrics.critical_failure_rate:.1%} exceeds allowed {request.gate.max_critical_failure_rate:.1%}")
+    if request.gate.max_agent_cost_per_case_eur is not None and metrics.agent_cost_per_case_eur > request.gate.max_agent_cost_per_case_eur:
+        reasons.append(f"agent cost €{metrics.agent_cost_per_case_eur:.4f}/case exceeds €{request.gate.max_agent_cost_per_case_eur:.4f}")
+    if request.gate.max_annual_failure_exposure_eur is not None and metrics.annualized_failure_exposure_eur > request.gate.max_annual_failure_exposure_eur:
+        reasons.append(f"annualized failure exposure €{metrics.annualized_failure_exposure_eur:,.0f} exceeds €{request.gate.max_annual_failure_exposure_eur:,.0f}")
     return GateResult(status="block" if reasons else "pass", reasons=reasons)

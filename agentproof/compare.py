@@ -1,64 +1,65 @@
 from __future__ import annotations
 
 import math
+from typing import Any
 
 from .models import ComparisonCase, RunComparison, RunRecord
 
 
 def wilson_interval(successes: int, total: int, z: float = 1.96) -> tuple[float, float]:
-    """95% Wilson score interval for a binomial proportion."""
     if total <= 0:
-        return (0.0, 0.0)
+        return 0.0, 0.0
     p = successes / total
     denom = 1 + z * z / total
     centre = (p + z * z / (2 * total)) / denom
-    margin = (
-        z
-        * math.sqrt((p * (1 - p) / total) + (z * z / (4 * total * total)))
-        / denom
-    )
-    return (max(0.0, centre - margin), min(1.0, centre + margin))
+    margin = z * math.sqrt((p * (1 - p) + z * z / (4 * total)) / total) / denom
+    return max(0.0, centre - margin), min(1.0, centre + margin)
 
 
-def exact_mcnemar_p(regressions: int, fixes: int) -> float:
-    """Two-sided exact McNemar/binomial test over discordant paired outcomes."""
-    n = regressions + fixes
+def exact_mcnemar_p_value(fixes: int, regressions: int) -> float:
+    n = fixes + regressions
     if n == 0:
         return 1.0
-    k = min(regressions, fixes)
+    k = min(fixes, regressions)
     tail = sum(math.comb(n, i) for i in range(k + 1)) / (2**n)
     return min(1.0, 2 * tail)
+
+
+def _decision(case) -> Any | None:
+    if not case.expected:
+        return None
+    target = next(iter(case.expected))
+    return case.output.parsed.get(target)
 
 
 def compare_runs(baseline: RunRecord, candidate: RunRecord) -> RunComparison:
     if baseline.pack_id != candidate.pack_id:
         raise ValueError("Runs must use the same evaluation pack")
 
-    baseline_by_id = {case.case_id: case for case in baseline.cases}
-    candidate_by_id = {case.case_id: case for case in candidate.cases}
-    common_ids = [case.case_id for case in baseline.cases if case.case_id in candidate_by_id]
-    if not common_ids:
-        raise ValueError("Runs have no overlapping case IDs")
+    bmap = {c.case_id: c for c in baseline.cases}
+    cmap = {c.case_id: c for c in candidate.cases}
+    ids = sorted(set(bmap) & set(cmap))
+    if not ids:
+        raise ValueError("Runs have no paired cases")
 
-    case_deltas: list[ComparisonCase] = []
-    regressions = fixes = new_critical = resolved_critical = 0
-    for case_id in common_ids:
-        b = baseline_by_id[case_id]
-        c = candidate_by_id[case_id]
-        status = "unchanged"
-        if b.grade.passed and not c.grade.passed:
-            status = "regression"
-            regressions += 1
-        elif not b.grade.passed and c.grade.passed:
+    cases: list[ComparisonCase] = []
+    fixes = regressions = new_critical = resolved_critical = 0
+    for case_id in ids:
+        b = bmap[case_id]
+        c = cmap[case_id]
+        if not b.grade.passed and c.grade.passed:
             status = "fix"
             fixes += 1
-
-        if c.grade.critical_failure and not b.grade.critical_failure:
+        elif b.grade.passed and not c.grade.passed:
+            status = "regression"
+            regressions += 1
+        else:
+            status = "unchanged"
+        if not b.grade.critical_failure and c.grade.critical_failure:
             new_critical += 1
         if b.grade.critical_failure and not c.grade.critical_failure:
             resolved_critical += 1
-
-        case_deltas.append(
+        cases.append(
             ComparisonCase(
                 case_id=case_id,
                 title=c.title,
@@ -67,82 +68,67 @@ def compare_runs(baseline: RunRecord, candidate: RunRecord) -> RunComparison:
                 candidate_passed=c.grade.passed,
                 baseline_critical=b.grade.critical_failure,
                 candidate_critical=c.grade.critical_failure,
-                baseline_decision=b.output.parsed.get("decision"),
-                candidate_decision=c.output.parsed.get("decision"),
+                baseline_decision=_decision(b),
+                candidate_decision=_decision(c),
                 baseline_score=b.grade.score,
                 candidate_score=c.grade.score,
             )
         )
 
-    paired = len(common_ids)
-    baseline_successes = sum(1 for case_id in common_ids if baseline_by_id[case_id].grade.passed)
-    candidate_successes = sum(1 for case_id in common_ids if candidate_by_id[case_id].grade.passed)
-    baseline_rate = baseline_successes / paired
-    candidate_rate = candidate_successes / paired
-    success_delta = candidate_rate - baseline_rate
+    total = len(ids)
+    b_success = sum(1 for i in ids if bmap[i].grade.passed)
+    c_success = sum(1 for i in ids if cmap[i].grade.passed)
+    b_rate = b_success / total
+    c_rate = c_success / total
+    p_value = exact_mcnemar_p_value(fixes, regressions)
 
-    b_critical = sum(1 for case_id in common_ids if baseline_by_id[case_id].grade.critical_failure) / paired
-    c_critical = sum(1 for case_id in common_ids if candidate_by_id[case_id].grade.critical_failure) / paired
-
-    p_value = exact_mcnemar_p(regressions, fixes)
     reasons: list[str] = []
-
-    if candidate.gate.status == "block":
+    if new_critical:
+        recommendation = "reject"
+        reasons.append(f"candidate introduced {new_critical} new critical failure(s)")
+    elif candidate.gate.status == "block":
         recommendation = "reject"
         reasons.append("candidate fails its configured deployment gate")
-    elif new_critical > 0:
-        recommendation = "reject"
-        reasons.append(f"candidate introduces {new_critical} new critical failure(s)")
-    elif success_delta < -0.005:
-        recommendation = "reject"
-        reasons.append(f"paired success rate regresses by {abs(success_delta):.1%}")
-    elif fixes > regressions and success_delta > 0:
+    elif c_rate > b_rate and fixes > regressions:
         recommendation = "promote"
-        reasons.append(f"candidate fixes {fixes} case(s) while regressing {regressions}")
-    elif success_delta >= 0 and candidate.metrics.agent_cost_per_case_eur < baseline.metrics.agent_cost_per_case_eur:
-        recommendation = "promote"
-        reasons.append("quality is non-inferior on this pack and cost per case is lower")
-    elif success_delta >= 0 and candidate.metrics.avg_latency_ms < baseline.metrics.avg_latency_ms:
-        recommendation = "promote"
-        reasons.append("quality is non-inferior on this pack and latency is lower")
+        reasons.append(f"candidate fixes {fixes} paired case(s) while regressing {regressions}")
+        if p_value <= 0.05:
+            reasons.append(f"paired improvement is statistically detectable (exact McNemar p={p_value:.4f})")
+        else:
+            reasons.append(f"paired improvement is directionally positive but not conclusive (p={p_value:.4f})")
     else:
         recommendation = "hold"
-        reasons.append("candidate is not clearly better on the evidence available")
+        reasons.append("candidate does not show a clear paired improvement")
 
-    if p_value < 0.05:
-        reasons.append(f"paired outcome difference is statistically significant (p={p_value:.4f})")
-    else:
-        reasons.append(f"paired outcome difference is not statistically significant (p={p_value:.4f})")
+    if candidate.metrics.annualized_failure_exposure_eur < baseline.metrics.annualized_failure_exposure_eur:
+        reasons.append(f"estimated annual failure exposure falls by €{baseline.metrics.annualized_failure_exposure_eur - candidate.metrics.annualized_failure_exposure_eur:,.0f}")
+    elif candidate.metrics.annualized_failure_exposure_eur > baseline.metrics.annualized_failure_exposure_eur:
+        reasons.append(f"estimated annual failure exposure rises by €{candidate.metrics.annualized_failure_exposure_eur - baseline.metrics.annualized_failure_exposure_eur:,.0f}")
 
     return RunComparison(
         baseline_run_id=baseline.id,
         candidate_run_id=candidate.id,
         pack_id=baseline.pack_id,
         pack_name=baseline.pack_name,
-        paired_cases=paired,
+        paired_cases=total,
         baseline_agent=baseline.agent.name,
         candidate_agent=candidate.agent.name,
-        baseline_success_rate=baseline_rate,
-        candidate_success_rate=candidate_rate,
-        baseline_success_ci=wilson_interval(baseline_successes, paired),
-        candidate_success_ci=wilson_interval(candidate_successes, paired),
-        success_rate_delta=success_delta,
-        critical_failure_rate_delta=c_critical - b_critical,
-        cost_per_case_delta_eur=(
-            candidate.metrics.agent_cost_per_case_eur - baseline.metrics.agent_cost_per_case_eur
-        ),
-        latency_delta_ms=(candidate.metrics.avg_latency_ms - baseline.metrics.avg_latency_ms),
-        annual_savings_delta_eur=(
-            candidate.metrics.estimated_annual_savings_eur
-            - baseline.metrics.estimated_annual_savings_eur
-        ),
+        baseline_success_rate=b_rate,
+        candidate_success_rate=c_rate,
+        baseline_success_ci=wilson_interval(b_success, total),
+        candidate_success_ci=wilson_interval(c_success, total),
+        success_rate_delta=c_rate - b_rate,
+        critical_failure_rate_delta=candidate.metrics.critical_failure_rate - baseline.metrics.critical_failure_rate,
+        cost_per_case_delta_eur=candidate.metrics.agent_cost_per_case_eur - baseline.metrics.agent_cost_per_case_eur,
+        latency_delta_ms=candidate.metrics.avg_latency_ms - baseline.metrics.avg_latency_ms,
+        annual_savings_delta_eur=candidate.metrics.risk_adjusted_annual_value_eur - baseline.metrics.risk_adjusted_annual_value_eur,
         regressions=regressions,
         fixes=fixes,
         new_critical_failures=new_critical,
         resolved_critical_failures=resolved_critical,
-        discordant_pairs=regressions + fixes,
+        discordant_pairs=fixes + regressions,
         mcnemar_p_value=p_value,
         recommendation=recommendation,
         reasons=reasons,
-        cases=case_deltas,
+        cases=cases,
     )

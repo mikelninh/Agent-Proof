@@ -3,30 +3,37 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Agent Proof — prove AI workflows before production</title>
-  <meta name="description" content="Evaluate AI agents on realistic work, quantify failure risk, and calculate ROI before deployment." />
+  <title>Agent Proof — deployment evidence for AI agents</title>
+  <meta name="description" content="Evaluate AI agents on realistic work, expose regressions and critical failures, and turn results into a deployment decision." />
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
   <main class="shell">
     <header class="topbar">
       <div class="brand"><span class="mark">AP</span><span>Agent Proof</span></div>
-      <div class="status"><span class="dot"></span> local-first evaluation lab</div>
+      <div class="status"><span class="dot"></span> deployment evidence for AI agents</div>
     </header>
 
     <section class="hero">
-      <div class="eyebrow">AI deployment evidence, not demos</div>
-      <h1>Prove an AI workflow<br/><span>before it touches production.</span></h1>
-      <p>Run realistic cases, catch dangerous failures, replay traces, compare models, and translate performance into euros.</p>
+      <div class="eyebrow">AI demos are easy. Production evidence is hard.</div>
+      <h1>Prove the agent<br/><span>before you trust the agent.</span></h1>
+      <p>Run representative work, catch dangerous failures, compare versions case-by-case, quantify failure exposure, and block unsafe releases.</p>
       <div class="hero-actions">
-        <button class="primary" id="runDemo">Run 100-case fraud eval</button>
-        <button class="secondary" id="runCandidate">Run stronger candidate</button>
+        <button class="primary" id="caseStudyBtn">Run flagship Support Ops study</button>
+        <button class="secondary" id="runSelected">Run selected evaluation</button>
         <button class="secondary" id="importCsvBtn">Import historical CSV</button>
-        <button class="secondary" id="uploadBtn">Upload eval pack JSON</button>
+        <button class="secondary" id="uploadBtn">Upload eval JSON</button>
         <input id="packFile" type="file" accept="application/json" hidden />
         <input id="csvFile" type="file" accept=".csv,text/csv" hidden />
       </div>
-      <div class="privacy-note">CSV imports are parsed in your browser. Ground truth is held out from the agent by construction.</div>
+      <div class="trust-row"><span>✓ hidden ground truth</span><span>✓ critical-failure gates</span><span>✓ paired regression tests</span><span>✓ CI-ready</span></div>
+    </section>
+
+    <section id="caseStudy" class="hidden">
+      <div class="section-heading"><div><div class="eyebrow">Flagship proof</div><h2>Support Ops deployment decision</h2></div><button class="secondary" id="caseStudyReport">Open candidate report</button></div>
+      <div class="study-summary" id="studySummary"></div>
+      <div class="study-grid" id="studyGrid"></div>
+      <div class="decision-panel" id="studyDecision"></div>
     </section>
 
     <section class="grid controls">
@@ -35,36 +42,37 @@
         <div class="form-grid">
           <label>Scenario pack<select id="packSelect"></select></label>
           <label>Agent provider<select id="provider">
-            <option value="heuristic">Built-in baseline · 87%</option>
-            <option value="heuristic_v2">Built-in candidate v2 · ~97%</option>
+            <option value="demo_baseline">Demo baseline</option>
+            <option value="demo_candidate">Demo candidate v2</option>
+            <option value="demo_risky">Demo aggressive v3</option>
             <option value="openai_compatible">OpenAI-compatible API</option>
             <option value="webhook">Your agent webhook</option>
           </select></label>
-          <label class="remote only-openai">Model<input id="model" placeholder="gpt-5-mini" /></label>
+          <label class="remote only-openai">Agent/model name<input id="model" placeholder="your-model" /></label>
           <label class="remote only-openai">Base URL<input id="baseUrl" placeholder="https://api.openai.com/v1" /></label>
-          <label class="remote only-openai">API key<input id="apiKey" type="password" placeholder="not stored" /></label>
+          <label class="remote only-openai">API key<input id="apiKey" type="password" placeholder="used for this run, never persisted" /></label>
           <label class="remote only-openai">Input €/1M tokens<input id="inputCost" type="number" step="0.01" value="0" /></label>
           <label class="remote only-openai">Output €/1M tokens<input id="outputCost" type="number" step="0.01" value="0" /></label>
           <label class="remote only-webhook">Webhook URL<input id="webhookUrl" placeholder="https://your-agent.example/run" /></label>
         </div>
       </article>
       <article class="panel">
-        <div class="panel-title"><span>02</span> Economics</div>
-        <label>Human minutes / case<input id="humanMinutes" type="number" value="8" step="0.1" /></label>
-        <label>Human hourly cost (€)<input id="humanHourly" type="number" value="35" step="1" /></label>
-        <label>Annual case volume<input id="annualVolume" type="number" value="50000" step="1000" /></label>
-        <label>Implementation cost (€)<input id="implementationCost" type="number" value="25000" step="1000" /></label>
-        <label>Minimum success gate (%)<input id="minSuccess" type="number" value="95" step="1" min="0" max="100" /></label>
-        <label>Max critical failures (%)<input id="maxCritical" type="number" value="0" step="0.1" min="0" max="100" /></label>
+        <div class="panel-title"><span>02</span> Deployment policy</div>
+        <label>Human minutes / case<input id="humanMinutes" type="number" value="9" step="0.1" /></label>
+        <label>Human hourly cost (€)<input id="humanHourly" type="number" value="34" step="1" /></label>
+        <label>Annual case volume<input id="annualVolume" type="number" value="60000" step="1000" /></label>
+        <label>Implementation cost (€)<input id="implementationCost" type="number" value="30000" step="1000" /></label>
+        <label>Minimum success (%)<input id="minSuccess" type="number" value="95" step="1" /></label>
+        <label>Max critical failures (%)<input id="maxCritical" type="number" value="0" step="0.1" /></label>
       </article>
     </section>
 
-    <section id="runState" class="run-state hidden"><div class="spinner"></div><div><strong>Evaluation running</strong><br/><span>Agents are working through the scenario pack.</span></div></section>
+    <section id="runState" class="run-state hidden"><div class="spinner"></div><div><strong>Evaluation running</strong><br/><span>Working through the pack and grading every case.</span></div></section>
 
     <section id="results" class="hidden">
-      <div class="section-heading"><div><div class="eyebrow">Run report</div><h2 id="runTitle">Deployment evidence</h2></div><div><button class="secondary" id="exportReport">Export report</button> <button class="secondary" id="rerun">Run again</button></div></div>
+      <div class="section-heading"><div><div class="eyebrow">Run evidence</div><h2 id="runTitle">Deployment report</h2></div><div><button class="secondary" id="exportReport">Executive report</button></div></div>
       <div class="metrics" id="metrics"></div>
-      <div class="grid">
+      <div class="grid result-grid">
         <article class="panel span-2">
           <div class="panel-title"><span>03</span> Failure analysis</div>
           <div class="summary-strip" id="summaryStrip"></div>
@@ -72,28 +80,43 @@
         </article>
         <article class="panel trace-panel">
           <div class="panel-title"><span>04</span> Trace replay</div>
-          <div id="traceEmpty" class="empty">Select a case to inspect the evidence.</div>
+          <div id="traceEmpty" class="empty">Select a failed case to inspect the evidence.</div>
           <div id="trace" class="hidden"></div>
         </article>
       </div>
+      <article class="panel coverage-panel">
+        <div class="panel-title"><span>05</span> Coverage map</div>
+        <div id="coverage" class="coverage-grid"></div>
+      </article>
+    </section>
+
+    <section class="grid lab-grid">
+      <article class="panel span-2">
+        <div class="panel-title"><span>06</span> Adversarial lab</div>
+        <p class="muted">Generate boundary cases, missing data and conflicting signals. Suggested labels are <strong>never auto-approved</strong>; a domain owner confirms every ground truth.</p>
+        <div class="inline-controls"><label>Drafts<input id="advLimit" type="number" min="4" max="50" value="12" /></label><button class="secondary" id="generateAdv">Generate drafts</button><button class="primary hidden" id="approveAdv">Create approved adversarial pack</button></div>
+        <div id="advWarning" class="warning hidden"></div>
+        <div id="advDrafts" class="adv-grid"></div>
+      </article>
+      <article class="panel">
+        <div class="panel-title"><span>07</span> Release gate</div>
+        <h3>CI, not another dashboard.</h3>
+        <p class="muted">Agent Proof ships with a GitHub Actions gate. A prompt/model/tool change can fail CI on low success or a new critical failure.</p>
+        <pre class="code">agentproof gate support-ops-v1 \
+  --provider demo_candidate \
+  --min-success .95 \
+  --max-critical 0 \
+  --github-summary</pre>
+        <div class="badge good-badge">✓ workflow included in repository</div>
+      </article>
     </section>
 
     <section class="compare-section">
-      <div class="section-heading"><div><div class="eyebrow">Release decision</div><h2>Compare a candidate against baseline</h2></div></div>
-      <article class="panel compare-panel">
-        <div class="compare-controls">
-          <label>Baseline run<select id="baselineRun"></select></label>
-          <label>Candidate run<select id="candidateRun"></select></label>
-          <button class="primary compare-button" id="compareRuns">Compare runs</button>
-          <button class="secondary compare-button hidden" id="exportComparison">Export regression report</button>
-        </div>
-        <div id="compareEmpty" class="empty">Run the same evaluation pack twice, then compare the candidate case-by-case against the baseline.</div>
-        <div id="compareResult" class="hidden">
-          <div class="comparison-banner" id="comparisonBanner"></div>
-          <div class="metrics compare-metrics" id="compareMetrics"></div>
-          <div class="comparison-reasons" id="comparisonReasons"></div>
-          <div class="table-wrap compare-table"><table><thead><tr><th>Changed case</th><th>Baseline</th><th>Candidate</th><th>Outcome</th></tr></thead><tbody id="comparisonRows"></tbody></table></div>
-        </div>
+      <div class="section-heading"><div><div class="eyebrow">Regression decision</div><h2>Compare candidate against baseline</h2></div></div>
+      <article class="panel">
+        <div class="compare-controls"><label>Baseline<select id="baselineRun"></select></label><label>Candidate<select id="candidateRun"></select></label><button class="primary" id="compareRuns">Compare</button><button class="secondary hidden" id="exportComparison">Export comparison</button></div>
+        <div id="compareEmpty" class="empty">Run the same pack twice, then compare it case-by-case.</div>
+        <div id="compareResult" class="hidden"><div class="comparison-banner" id="comparisonBanner"></div><div class="metrics" id="compareMetrics"></div><div id="comparisonReasons" class="reason-row"></div><div class="table-wrap"><table><thead><tr><th>Changed case</th><th>Baseline</th><th>Candidate</th><th>Outcome</th></tr></thead><tbody id="comparisonRows"></tbody></table></div></div>
       </article>
     </section>
 
@@ -102,35 +125,23 @@
       <div id="history" class="history"></div>
     </section>
 
-    <footer>Agent Proof v0.4-dev · scenario packs + deterministic grading + ROI · API keys are never persisted.</footer>
+    <footer>Agent Proof v0.5 · local-first evals · evidence over vibes · API keys are never persisted.</footer>
   </main>
 
-  <div class="modal hidden" id="csvModal" role="dialog" aria-modal="true" aria-labelledby="csvTitle">
+  <div class="modal hidden" id="csvModal" role="dialog" aria-modal="true">
     <div class="modal-card">
-      <div class="modal-head">
-        <div><div class="eyebrow">Pilot mode</div><h2 id="csvTitle">Turn historical work into an eval</h2></div>
-        <button class="icon-button" id="csvClose" aria-label="Close">×</button>
-      </div>
-      <div class="wizard-note"><strong>Local-first:</strong> your CSV is parsed in this browser. Choose exactly what the agent may see; the target column becomes hidden ground truth.</div>
+      <div class="modal-head"><div><div class="eyebrow">Pilot mode</div><h2>Turn historical work into an eval</h2></div><button class="icon-button" id="csvClose">×</button></div>
+      <div class="wizard-note"><strong>Local-first mapping:</strong> the CSV is parsed in your browser. The target becomes hidden ground truth and is never included in agent input.</div>
       <div id="csvWarnings"></div>
       <div class="form-grid import-grid">
-        <label>Pack name<input id="csvPackName" placeholder="Claims Triage — September" /></label>
-        <label>Pack ID<input id="csvPackId" placeholder="claims-sept-v1" /></label>
-        <label class="full">Agent instruction<textarea id="csvInstruction" placeholder="Review this case and return JSON with decision: approve, review, or reject."></textarea></label>
-        <label>Hidden ground-truth column<select id="csvTarget"></select></label>
-        <label>Case title column (optional)<select id="csvTitleColumn"><option value="">Auto-number cases</option></select></label>
-        <label>Critical expected value<input id="csvCriticalExpected" placeholder="fraud" /></label>
-        <label>Dangerous agent value<input id="csvCriticalActual" placeholder="approve" /></label>
+        <label>Pack name<input id="csvPackName" /></label><label>Pack ID<input id="csvPackId" /></label>
+        <label class="full">Agent instruction<textarea id="csvInstruction"></textarea></label>
+        <label>Hidden target<select id="csvTarget"></select></label><label>Case title column<select id="csvTitleColumn"><option value="">Auto-number</option></select></label>
+        <label>Critical expected<input id="csvCriticalExpected" placeholder="reject" /></label><label>Dangerous agent value<input id="csvCriticalActual" placeholder="approve" /></label>
       </div>
-      <div class="import-section">
-        <div class="import-section-head"><div><strong>Agent-visible columns</strong><span>Unchecked columns are excluded from prompts.</span></div><button class="tiny" id="selectSafeColumns">Exclude likely PII</button></div>
-        <div class="column-grid" id="csvColumns"></div>
-      </div>
+      <div class="import-section"><div class="import-section-head"><div><strong>Agent-visible columns</strong><span>Uncheck anything the agent must not see.</span></div><button class="tiny" id="selectSafeColumns">Exclude likely PII</button></div><div class="column-grid" id="csvColumns"></div></div>
       <div class="import-stats" id="csvStats"></div>
-      <div class="import-section">
-        <div class="import-section-head"><div><strong>Preview</strong><span>First 5 rows. Target is visually separated from agent input.</span></div></div>
-        <div class="table-wrap import-preview"><table><thead id="csvPreviewHead"></thead><tbody id="csvPreviewBody"></tbody></table></div>
-      </div>
+      <div class="import-section"><strong>Preview</strong><div class="table-wrap import-preview"><table><thead id="csvPreviewHead"></thead><tbody id="csvPreviewBody"></tbody></table></div></div>
       <div class="modal-actions"><button class="secondary" id="csvCancel">Cancel</button><button class="primary" id="csvCreate">Create evaluation pack</button></div>
     </div>
   </div>

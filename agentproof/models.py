@@ -23,6 +23,7 @@ class EvalCase(BaseModel):
     input: dict[str, Any]
     expected: dict[str, Any]
     tags: list[str] = Field(default_factory=list)
+    failure_cost_eur: float = 0.0
 
 
 class EvalPack(BaseModel):
@@ -34,9 +35,20 @@ class EvalPack(BaseModel):
     cases: list[EvalCase]
 
 
+ProviderName = Literal[
+    "heuristic",
+    "heuristic_v2",
+    "demo_baseline",
+    "demo_candidate",
+    "demo_risky",
+    "openai_compatible",
+    "webhook",
+]
+
+
 class AgentConfig(BaseModel):
-    provider: Literal["heuristic", "heuristic_v2", "openai_compatible", "webhook"] = "heuristic"
-    name: str = "Built-in heuristic baseline"
+    provider: ProviderName = "demo_baseline"
+    name: str = "Demo baseline"
     model: str | None = None
     base_url: str | None = None
     api_key: str | None = None
@@ -58,6 +70,7 @@ class GatePolicy(BaseModel):
     min_success_rate: float = 0.95
     max_critical_failure_rate: float = 0.0
     max_agent_cost_per_case_eur: float | None = None
+    max_annual_failure_exposure_eur: float | None = None
 
 
 class RunRequest(BaseModel):
@@ -89,6 +102,8 @@ class CaseResult(BaseModel):
     title: str
     input: dict[str, Any]
     expected: dict[str, Any]
+    tags: list[str] = Field(default_factory=list)
+    failure_cost_eur: float = 0.0
     output: ProviderResult
     grade: CaseGrade
 
@@ -108,6 +123,9 @@ class RunMetrics(BaseModel):
     estimated_annual_savings_eur: float
     first_year_net_savings_eur: float
     roi_multiple: float | None
+    estimated_failure_cost_per_case_eur: float = 0.0
+    annualized_failure_exposure_eur: float = 0.0
+    risk_adjusted_annual_value_eur: float = 0.0
 
 
 class GateResult(BaseModel):
@@ -172,3 +190,53 @@ class RunComparison(BaseModel):
     recommendation: Literal["promote", "hold", "reject"]
     reasons: list[str] = Field(default_factory=list)
     cases: list[ComparisonCase] = Field(default_factory=list)
+
+
+class CoverageBucket(BaseModel):
+    tag: str
+    cases: int
+    success_rate: float
+    critical_failures: int
+    failure_exposure_eur: float
+
+
+class AdversarialGenerateRequest(BaseModel):
+    limit: int = Field(default=16, ge=1, le=100)
+    families: list[Literal["missing", "boundary", "boolean_flip", "conflict", "scale"]] = Field(
+        default_factory=lambda: ["missing", "boundary", "boolean_flip", "conflict"]
+    )
+
+
+class AdversarialDraft(BaseModel):
+    id: str
+    base_case_id: str
+    title: str
+    family: str
+    rationale: str
+    input: dict[str, Any]
+    suggested_expected: dict[str, Any]
+    tags: list[str] = Field(default_factory=list)
+    failure_cost_eur: float = 0.0
+
+
+class ApprovedAdversarialCase(BaseModel):
+    draft: AdversarialDraft
+    expected: dict[str, Any]
+
+
+class AdversarialApproveRequest(BaseModel):
+    id: str
+    name: str
+    description: str = "Human-approved adversarial evaluation pack"
+    cases: list[ApprovedAdversarialCase]
+
+
+class CaseStudyResult(BaseModel):
+    pack_id: str
+    pack_name: str
+    baseline: RunRecord
+    candidate: RunRecord
+    risky: RunRecord
+    candidate_comparison: RunComparison
+    risky_comparison: RunComparison
+    executive_summary: list[str] = Field(default_factory=list)

@@ -1,213 +1,179 @@
 # Agent Proof
 
-> **Prove AI workflows before they touch customers, money, or production systems.**
+> **Prove an AI workflow before it touches customers, money, or production.**
 
-Agent Proof is a local-first evaluation lab for AI agents and automated workflows. It runs realistic scenario packs, grades outcomes, flags dangerous failures, records latency and cost, and converts the result into a business case.
+Agent Proof is a local-first evaluation and release-gating system for AI agents. It turns representative work into reusable eval packs, runs candidate agents against hidden ground truth, surfaces critical failures and weak segments, compares versions case-by-case, quantifies risk/ROI, and can fail CI when a candidate is unsafe.
 
-The MVP ships with a **100-case Fraud Analyst Arena** so it is useful immediately — no API key required.
+## Why it exists
 
-## Why this exists
+A compelling AI demo does not answer the questions a deployment owner actually has:
 
-AI demos are easy. Deployment evidence is hard.
-
-A team evaluating an agent usually needs to answer:
-
-- Does it complete the task correctly across many cases?
-- What are the *dangerous* failure modes, not just the average score?
-- Can we inspect exactly what happened on a failed case?
-- How much does each task cost and how long does it take?
-- Does the economics beat the current human workflow?
-- Did a prompt/model/tool change make the system better or worse?
+- Does this agent work across representative cases?
+- Which misses are merely wrong, and which are dangerous?
+- Did the new prompt/model/tool version fix more cases than it broke?
+- Are failures concentrated in a particular market, issue type or risk class?
+- What is the estimated cost of observed misses at production volume?
+- Can we block a release automatically instead of hoping someone checks a dashboard?
 
 Agent Proof makes those questions the product.
 
-## What works today
+## What works now — v0.5
 
-- **100-case synthetic Fraud Analyst Arena** with hidden ground truth
-- **Deterministic grading** and asymmetric critical-failure rules
-- **Two built-in offline agents** (87% baseline + ~97% candidate) so regression comparison works immediately
-- **OpenAI-compatible adapter** for hosted or local models
-- **Generic webhook adapter** for evaluating your own agent
-- **Pilot Mode CSV importer**: map a historical export into an eval from the browser, choose agent-visible fields, hold out ground truth, flag likely PII, and define a critical mismatch
-- **Bring-your-own JSON scenario packs**
-- **Case-level trace replay**: input → output → ground truth → grader evidence
-- **Cost, latency and ROI** from configurable human baselines
-- **Paired run comparison** with fixes, regressions, new critical failures, Wilson intervals and an exact McNemar test
-- **Run history** in SQLite for regression checks
-- **CLI + web UI + API**
-- **Docker + CI + tests**
+- **Flagship 180-case Support Ops case study** with an explicit reference policy
+- **100-case Fraud Analyst Arena** retained as a second built-in pack
+- **Historical CSV Pilot Mode** with browser-side mapping and hidden target separation
+- **OpenAI-compatible API** and **generic agent webhook** adapters
+- Three offline demo agents: baseline, safe candidate and intentionally risky candidate
+- Deterministic JSON-field grading and configurable asymmetric critical failures
+- Failure-cost weighting and **annualized failure-exposure** estimates
+- Explicit **PASS / BLOCK** deployment gates
+- Case-level trace replay: input → output → hidden truth → grader evidence
+- **Coverage map** by tags / risk segments
+- **Paired regression comparison** with fixes, regressions, new critical failures, Wilson intervals and exact McNemar test
+- **Adversarial lab** for boundary values, missing fields, boolean flips, conflicting signals and scale tests
+- Human confirmation required before adversarial draft labels become ground truth
+- Executive Markdown reports
+- CLI, API, web UI, Docker, tests and GitHub Actions
+- **CI release gate** that exits non-zero on deployment-policy failure
+
+## Flagship result
+
+The bundled Support Ops study is deterministic and reproducible:
+
+| Agent | Success | Critical | Annualized failure exposure | Gate |
+|---|---:|---:|---:|---|
+| baseline | 83.3% | 0.0% | €3.55m | BLOCK |
+| candidate v2 | 99.4% | 0.0% | €11.7k | PASS |
+| aggressive v3 | 82.2% | 2.2% | €4.62m | BLOCK |
+
+Candidate v2 fixes 30 paired failures and introduces one regression. The paired comparison recommends **PROMOTE**. Aggressive v3 introduces critical failures and is **REJECTED**. See [`case-studies/support-ops.md`](case-studies/support-ops.md).
+
+These numbers are synthetic decision-support evidence, not claims about a real company or model.
 
 ## Quick start
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate      # Windows: .venv\\Scripts\\activate
+source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -e '.[dev]'
 uvicorn agentproof.app:app --reload
 ```
 
-Open **http://localhost:8000**. Run the baseline, then press **Run stronger candidate** and compare the two runs. The bundled demo intentionally moves from a blocked ~87% baseline to a ~97% candidate so you can see the release-decision workflow without an API key.
+Open **http://localhost:8000** and click **Run flagship Support Ops study**.
 
-Or with Docker:
+Or:
 
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
 
-## Pilot Mode — bring historical cases without writing JSON
+## Run a deployment gate from the CLI
 
-Press **Import historical CSV** in the web UI. The browser parses the file locally and gives you a small import wizard:
+```bash
+agentproof gate support-ops-v1 \
+  --provider demo_candidate \
+  --min-success .95 \
+  --max-critical 0 \
+  --output candidate-run.json \
+  --github-summary
+```
 
-1. choose the **hidden ground-truth column** (for example `decision`),
-2. choose exactly which columns the evaluated agent may see,
-3. exclude likely personal-data columns,
-4. optionally define an asymmetric critical failure such as `fraud → approve`,
-5. inspect label distribution, missing targets, duplicates and a five-row preview,
-6. create the evaluation pack and run it immediately.
+Exit code is non-zero if the gate blocks. The repository includes `.github/workflows/agent-proof-gate.yml` as a working example.
 
-The target column is never copied into `case.input`; it is stored separately as `case.expected` and is used only after the agent returns an answer. The PII detector is deliberately conservative and is only a warning — it is not a compliance guarantee.
+## Evaluate a real agent
 
-## Evaluate a real model
+### Webhook
 
-Choose **OpenAI-compatible API** in the UI and provide:
-
-- model name
-- base URL
-- API key
-- optional token prices for accurate cost reporting
-
-Because the adapter uses the common `/chat/completions` shape, it can work with OpenAI-compatible gateways and many local model servers.
-
-The API key is used for the run and removed from the persisted record.
-
-## Evaluate your own agent
-
-Choose **Your agent webhook** and point Agent Proof at an endpoint accepting:
+Point Agent Proof at an endpoint accepting:
 
 ```json
 {
-  "instruction": "Review the transaction...",
-  "case_id": "fraud-001",
-  "input": {"amount_eur": 1290, "new_device": true}
+  "instruction": "Resolve the support case...",
+  "case_id": "support-001",
+  "input": {"issue_type": "cancellation", "amount_eur": 79}
 }
 ```
 
 Return either the output object directly or:
 
 ```json
-{"output": {"decision": "review", "reason": "..."}}
+{"output": {"decision": "refund", "priority": "normal"}}
 ```
 
-## Scenario pack format
+### OpenAI-compatible endpoint
 
-```json
-{
-  "id": "claims-v1",
-  "name": "Claims Triage v1",
-  "description": "Historical-style synthetic claims",
-  "task_instruction": "Return JSON with decision...",
-  "grader": {
-    "type": "json_fields",
-    "required_fields": ["decision"],
-    "field_weights": {"decision": 1.0},
-    "critical_mismatches": [
-      {"field": "decision", "expected": "reject", "actual": "approve"}
-    ]
-  },
-  "cases": [
-    {
-      "id": "claim-001",
-      "title": "Claim 001",
-      "input": {"amount": 820, "documents_complete": false},
-      "expected": {"decision": "review"},
-      "tags": ["missing-documents"]
-    }
-  ]
-}
-```
+Choose **OpenAI-compatible API** in the UI and provide model, base URL and API key. API keys are used for the run and removed from persisted run records.
 
-**Important:** expected answers are never included in the prompt sent to the agent.
+## Bring historical cases in under five minutes
 
-## CLI
+Click **Import historical CSV**. The browser parses the file locally, then lets the user:
+
+1. choose the hidden ground-truth column,
+2. choose exactly which columns the agent may see,
+3. exclude likely PII columns,
+4. define a dangerous mismatch such as `reject → approve`,
+5. inspect missing labels and a preview,
+6. create a reusable eval pack and run it immediately.
+
+Headless equivalent:
 
 ```bash
-agentproof run builtin:fraud-analyst-v1 \
-  --provider heuristic \
-  --output evidence/demo-run.json
-```
-
-### CI-style run and regression commands
-
-Fail a pipeline when an agent misses its deployment gate:
-
-```bash
-agentproof run builtin:fraud-analyst-v1 \
-  --provider heuristic_v2 \
-  --output evidence/candidate.json \
-  --fail-on-block
-```
-
-Compare two saved runs and fail when the candidate should be rejected:
-
-```bash
-agentproof compare evidence/baseline.json evidence/candidate.json \
-  --output evidence/comparison.json \
-  --fail-on-reject
-```
-
-The comparison is paired by case ID. It reports fixes, regressions, newly introduced critical failures, cost/latency deltas and a two-sided exact McNemar p-value.
-
-### Headless CSV import
-
-```bash
-agentproof pack-csv historical_cases.csv \
-  --id support-v1 \
-  --name "Support Resolution v1" \
+agentproof pack-csv examples/support-sample.csv \
+  --id support-pilot-v1 \
+  --name "Support Pilot" \
   --target decision \
   --instruction "Resolve the case and return JSON with decision" \
-  --critical reject:approve \
-  --output packs/support-v1.json
+  --critical deny:refund \
+  --output support-pilot-v1.json
 ```
 
-The target column is held out from the agent and used only for grading.
+## Adversarial testing
+
+The web **Adversarial Lab** creates draft mutations such as boundary values, missing data and conflicting signals. The software deliberately does **not** treat generated labels as truth. A domain owner must check the draft and confirm/edit the expected JSON before an adversarial pack can be created.
+
+CLI draft generation:
+
+```bash
+agentproof adversarial support-ops-v1 --limit 20 --output adversarial-drafts.json
+```
+
+## Compare versions
+
+```bash
+agentproof run support-ops-v1 --provider demo_baseline --output baseline.json
+agentproof run support-ops-v1 --provider demo_candidate --output candidate.json
+agentproof compare baseline.json candidate.json --require-promote --github-summary
+```
+
+The comparison is paired by case ID and reports fixes, regressions, new critical failures and an exact McNemar p-value.
 
 ## API
 
 - `GET /api/health`
 - `GET /api/packs`
 - `POST /api/packs`
+- `POST /api/packs/{id}/adversarial-drafts`
+- `POST /api/packs/{id}/adversarial-approve`
 - `POST /api/runs`
-- `GET /api/runs`
 - `GET /api/runs/{id}`
+- `GET /api/runs/{id}/coverage`
+- `GET /api/runs/{id}/report.md`
 - `POST /api/compare`
-- `GET /api/compare/{baseline_id}/{candidate_id}/report.md`
+- `GET /api/compare/{baseline}/{candidate}/report.md`
+- `POST /api/case-study/support`
 
-## What makes this commercially useful
+## Commercial pilot
 
-The product is intentionally not "another benchmark leaderboard." A buyer can attach an agent to the same cases their human team understands, define costly failure modes, and get an evidence trail plus an ROI estimate. That is a much shorter path from demo to a paid deployment decision.
+> **Agent Readiness Evaluation** — provide 50–500 representative, appropriately anonymised cases plus an agent endpoint. Agent Proof turns them into an evaluation pack, defines critical failure rules with the domain owner, evaluates the current and candidate agent, and delivers a deployment/regression/ROI report.
 
-### Pilot offer
+The software is the repeatable engine; the valuable asset becomes the customer's validated scenario library, ground truth, failure taxonomy and regression history.
 
-> **Agent Readiness Evaluation** — turn 50–500 representative cases into an eval pack, test the current agent and one alternative, identify critical failure modes, and deliver a deployment/ROI report.
+## Safety and data
 
-The software becomes the repeatable engine behind that service and, later, continuous regression testing for production agents.
-
-## Roadmap
-
-1. Adversarial / red-team scenario generation with human approval of ground truth
-2. CI annotations / GitHub check summaries for deployment gates
-3. Team workspaces, auth and hosted storage
-4. PII-safe connectors for historical-case import
-5. LLM-as-judge for subjective outputs, always alongside deterministic checks
-
-## Safety / data note
-
-The bundled pack is synthetic. For real pilots, use synthetic or appropriately anonymised data and involve the domain owner in validating ground truth. Agent Proof is an evaluation tool, not a substitute for legal, compliance, medical, financial or security review.
+The bundled case studies are synthetic. For real pilots, use synthetic or appropriately anonymised data and have the domain owner validate ground truth and failure costs. PII detection in Pilot Mode is only a warning heuristic. Agent Proof is decision-support infrastructure, not a substitute for legal, compliance, medical, financial or security review.
 
 ## Build system
-
-The repository follows:
 
 **01 SHAPE → 02 SPECIFY → 03 DELEGATE → 04 PROVE → 05 SHIP → 06 WATCH**
 
