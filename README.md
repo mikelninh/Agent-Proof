@@ -28,7 +28,8 @@ Agent Proof makes those questions the product.
 - **Two built-in offline agents** (87% baseline + ~97% candidate) so regression comparison works immediately
 - **OpenAI-compatible adapter** for hosted or local models
 - **Generic webhook adapter** for evaluating your own agent
-- **Bring-your-own scenario packs** by uploading JSON
+- **Pilot Mode CSV importer**: map a historical export into an eval from the browser, choose agent-visible fields, hold out ground truth, flag likely PII, and define a critical mismatch
+- **Bring-your-own JSON scenario packs**
 - **Case-level trace replay**: input → output → ground truth → grader evidence
 - **Cost, latency and ROI** from configurable human baselines
 - **Paired run comparison** with fixes, regressions, new critical failures, Wilson intervals and an exact McNemar test
@@ -53,6 +54,19 @@ Or with Docker:
 cp .env.example .env
 docker compose up --build
 ```
+
+## Pilot Mode — bring historical cases without writing JSON
+
+Press **Import historical CSV** in the web UI. The browser parses the file locally and gives you a small import wizard:
+
+1. choose the **hidden ground-truth column** (for example `decision`),
+2. choose exactly which columns the evaluated agent may see,
+3. exclude likely personal-data columns,
+4. optionally define an asymmetric critical failure such as `fraud → approve`,
+5. inspect label distribution, missing targets, duplicates and a five-row preview,
+6. create the evaluation pack and run it immediately.
+
+The target column is never copied into `case.input`; it is stored separately as `case.expected` and is used only after the agent returns an answer. The PII detector is deliberately conservative and is only a warning — it is not a compliance guarantee.
 
 ## Evaluate a real model
 
@@ -144,6 +158,20 @@ agentproof compare evidence/baseline.json evidence/candidate.json \
 
 The comparison is paired by case ID. It reports fixes, regressions, newly introduced critical failures, cost/latency deltas and a two-sided exact McNemar p-value.
 
+### Headless CSV import
+
+```bash
+agentproof pack-csv historical_cases.csv \
+  --id support-v1 \
+  --name "Support Resolution v1" \
+  --target decision \
+  --instruction "Resolve the case and return JSON with decision" \
+  --critical reject:approve \
+  --output packs/support-v1.json
+```
+
+The target column is held out from the agent and used only for grading.
+
 ## API
 
 - `GET /api/health`
@@ -161,19 +189,17 @@ The product is intentionally not "another benchmark leaderboard." A buyer can at
 
 ### Pilot offer
 
-A strong first service around the software is:
-
 > **Agent Readiness Evaluation** — turn 50–500 representative cases into an eval pack, test the current agent and one alternative, identify critical failure modes, and deliver a deployment/ROI report.
 
 The software becomes the repeatable engine behind that service and, later, continuous regression testing for production agents.
 
 ## Roadmap
 
-1. LLM-as-judge for subjective outputs, always alongside deterministic checks
-2. Red-team / adversarial scenario generation
+1. Adversarial / red-team scenario generation with human approval of ground truth
+2. CI annotations / GitHub check summaries for deployment gates
 3. Team workspaces, auth and hosted storage
 4. PII-safe connectors for historical-case import
-5. CI annotations / GitHub check summaries for deployment gates
+5. LLM-as-judge for subjective outputs, always alongside deterministic checks
 
 ## Safety / data note
 
@@ -186,23 +212,3 @@ The repository follows:
 **01 SHAPE → 02 SPECIFY → 03 DELEGATE → 04 PROVE → 05 SHIP → 06 WATCH**
 
 See `.ai-build/` and `AGENTS.md`.
-
-## Deployment gates
-
-Every run can enforce explicit thresholds such as **minimum success rate** and **maximum critical-failure rate**. The result is a simple PASS/BLOCK decision with reasons, so the evaluation can become a release gate rather than a dashboard people forget to check.
-
-## Turn an existing CSV into an eval pack
-
-If a team already has a historical export with a ground-truth column:
-
-```bash
-agentproof pack-csv historical_cases.csv \
-  --id support-v1 \
-  --name "Support Resolution v1" \
-  --target decision \
-  --instruction "Resolve the case and return JSON with decision" \
-  --critical reject:approve \
-  --output packs/support-v1.json
-```
-
-This creates a portable pack where the target column is held out from the agent and used only for grading.

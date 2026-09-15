@@ -21,9 +21,12 @@
       <div class="hero-actions">
         <button class="primary" id="runDemo">Run 100-case fraud eval</button>
         <button class="secondary" id="runCandidate">Run stronger candidate</button>
-        <button class="secondary" id="uploadBtn">Upload your eval pack</button>
+        <button class="secondary" id="importCsvBtn">Import historical CSV</button>
+        <button class="secondary" id="uploadBtn">Upload eval pack JSON</button>
         <input id="packFile" type="file" accept="application/json" hidden />
+        <input id="csvFile" type="file" accept=".csv,text/csv" hidden />
       </div>
+      <div class="privacy-note">CSV imports are parsed in your browser. Ground truth is held out from the agent by construction.</div>
     </section>
 
     <section class="grid controls">
@@ -99,8 +102,39 @@
       <div id="history" class="history"></div>
     </section>
 
-    <footer>Agent Proof v0.3 · scenario packs + deterministic grading + ROI · your API keys stay in the browser request and are never persisted.</footer>
+    <footer>Agent Proof v0.4-dev · scenario packs + deterministic grading + ROI · API keys are never persisted.</footer>
   </main>
+
+  <div class="modal hidden" id="csvModal" role="dialog" aria-modal="true" aria-labelledby="csvTitle">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div><div class="eyebrow">Pilot mode</div><h2 id="csvTitle">Turn historical work into an eval</h2></div>
+        <button class="icon-button" id="csvClose" aria-label="Close">×</button>
+      </div>
+      <div class="wizard-note"><strong>Local-first:</strong> your CSV is parsed in this browser. Choose exactly what the agent may see; the target column becomes hidden ground truth.</div>
+      <div id="csvWarnings"></div>
+      <div class="form-grid import-grid">
+        <label>Pack name<input id="csvPackName" placeholder="Claims Triage — September" /></label>
+        <label>Pack ID<input id="csvPackId" placeholder="claims-sept-v1" /></label>
+        <label class="full">Agent instruction<textarea id="csvInstruction" placeholder="Review this case and return JSON with decision: approve, review, or reject."></textarea></label>
+        <label>Hidden ground-truth column<select id="csvTarget"></select></label>
+        <label>Case title column (optional)<select id="csvTitleColumn"><option value="">Auto-number cases</option></select></label>
+        <label>Critical expected value<input id="csvCriticalExpected" placeholder="fraud" /></label>
+        <label>Dangerous agent value<input id="csvCriticalActual" placeholder="approve" /></label>
+      </div>
+      <div class="import-section">
+        <div class="import-section-head"><div><strong>Agent-visible columns</strong><span>Unchecked columns are excluded from prompts.</span></div><button class="tiny" id="selectSafeColumns">Exclude likely PII</button></div>
+        <div class="column-grid" id="csvColumns"></div>
+      </div>
+      <div class="import-stats" id="csvStats"></div>
+      <div class="import-section">
+        <div class="import-section-head"><div><strong>Preview</strong><span>First 5 rows. Target is visually separated from agent input.</span></div></div>
+        <div class="table-wrap import-preview"><table><thead id="csvPreviewHead"></thead><tbody id="csvPreviewBody"></tbody></table></div>
+      </div>
+      <div class="modal-actions"><button class="secondary" id="csvCancel">Cancel</button><button class="primary" id="csvCreate">Create evaluation pack</button></div>
+    </div>
+  </div>
+
   <script src="/static/app.js"></script>
 </body>
 </html>
