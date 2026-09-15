@@ -1,0 +1,6 @@
+ticket_id,issue_type,amount_eur,order_age_days,evidence_attached,decision
+T-001,damaged_delivery,79,4,true,replace
+T-002,cancellation,39,8,true,refund
+T-003,cancellation,129,22,true,deny
+T-004,duplicate_charge,499,2,true,manual_review
+T-005,late_delivery,79,12,true,service_credit
