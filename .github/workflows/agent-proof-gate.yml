@@ -6,6 +6,7 @@ on:
     paths:
       - 'agentproof/**'
       - 'packs/**'
+      - 'tests/**'
       - '.github/workflows/agent-proof-gate.yml'
 
 jobs:
@@ -17,16 +18,32 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -e '.[dev]'
+      - name: Run approved baseline
+        run: >-
+          agentproof run support-ops-v1
+          --provider demo_baseline
+          --name "Approved baseline"
+          --output baseline-run.json
       - name: Run candidate deployment gate
         run: >-
           agentproof gate support-ops-v1
           --provider demo_candidate
+          --name "Candidate"
           --min-success 0.95
           --max-critical 0
           --output candidate-run.json
           --github-summary
-      - name: Upload evidence
+      - name: Require paired regression improvement
+        run: >-
+          agentproof compare baseline-run.json candidate-run.json
+          --require-promote
+          --output comparison.json
+          --github-summary
+      - name: Upload evidence bundle
         uses: actions/upload-artifact@v4
         with:
           name: agent-proof-evidence
-          path: candidate-run.json
+          path: |
+            baseline-run.json
+            candidate-run.json
+            comparison.json
