@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agent-proof"
+version = "0.3.0"
+description = "Prove AI workflows before they touch customers, money, or production systems."
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "Michael Ninh"}]
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.30,<1",
+  "pydantic>=2.8,<3",
+  "httpx>=0.27,<1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9", "pytest-asyncio>=0.24,<1"]
+
+[project.scripts]
+agentproof = "agentproof.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["agentproof"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+addopts = "-q"

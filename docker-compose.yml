@@ -1,0 +1,9 @@
+services:
+  agent-proof:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./agentproof.db:/app/agentproof.db
+    env_file:
+      - .env

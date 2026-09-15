@@ -25,12 +25,13 @@ Agent Proof makes those questions the product.
 
 - **100-case synthetic Fraud Analyst Arena** with hidden ground truth
 - **Deterministic grading** and asymmetric critical-failure rules
-- **Built-in baseline agent** so the app works immediately
+- **Two built-in offline agents** (87% baseline + ~97% candidate) so regression comparison works immediately
 - **OpenAI-compatible adapter** for hosted or local models
 - **Generic webhook adapter** for evaluating your own agent
 - **Bring-your-own scenario packs** by uploading JSON
 - **Case-level trace replay**: input → output → ground truth → grader evidence
 - **Cost, latency and ROI** from configurable human baselines
+- **Paired run comparison** with fixes, regressions, new critical failures, Wilson intervals and an exact McNemar test
 - **Run history** in SQLite for regression checks
 - **CLI + web UI + API**
 - **Docker + CI + tests**
@@ -44,7 +45,7 @@ pip install -e '.[dev]'
 uvicorn agentproof.app:app --reload
 ```
 
-Open **http://localhost:8000** and press **Run 100-case fraud eval**.
+Open **http://localhost:8000**. Run the baseline, then press **Run stronger candidate** and compare the two runs. The bundled demo intentionally moves from a blocked ~87% baseline to a ~97% candidate so you can see the release-decision workflow without an API key.
 
 Or with Docker:
 
@@ -117,10 +118,31 @@ Return either the output object directly or:
 ## CLI
 
 ```bash
-agentproof run packs/fraud-analyst-v1.json \
+agentproof run builtin:fraud-analyst-v1 \
   --provider heuristic \
   --output evidence/demo-run.json
 ```
+
+### CI-style run and regression commands
+
+Fail a pipeline when an agent misses its deployment gate:
+
+```bash
+agentproof run builtin:fraud-analyst-v1 \
+  --provider heuristic_v2 \
+  --output evidence/candidate.json \
+  --fail-on-block
+```
+
+Compare two saved runs and fail when the candidate should be rejected:
+
+```bash
+agentproof compare evidence/baseline.json evidence/candidate.json \
+  --output evidence/comparison.json \
+  --fail-on-reject
+```
+
+The comparison is paired by case ID. It reports fixes, regressions, newly introduced critical failures, cost/latency deltas and a two-sided exact McNemar p-value.
 
 ## API
 
@@ -130,6 +152,8 @@ agentproof run packs/fraud-analyst-v1.json \
 - `POST /api/runs`
 - `GET /api/runs`
 - `GET /api/runs/{id}`
+- `POST /api/compare`
+- `GET /api/compare/{baseline_id}/{candidate_id}/report.md`
 
 ## What makes this commercially useful
 
@@ -145,13 +169,11 @@ The software becomes the repeatable engine behind that service and, later, conti
 
 ## Roadmap
 
-1. CSV → pack builder and field mapping
-2. Pairwise run comparison with statistical confidence intervals
-3. LLM-as-judge for subjective outputs, always alongside deterministic checks
-4. Red-team / adversarial scenario generation
-5. Approval thresholds and deployment gates in CI
-6. Team workspaces, auth and hosted storage
-7. PII-safe connectors for historical-case import
+1. LLM-as-judge for subjective outputs, always alongside deterministic checks
+2. Red-team / adversarial scenario generation
+3. Team workspaces, auth and hosted storage
+4. PII-safe connectors for historical-case import
+5. CI annotations / GitHub check summaries for deployment gates
 
 ## Safety / data note
 
