@@ -9,7 +9,8 @@ from .models import EvalPack, RunRecord
 
 class Store:
     def __init__(self, path: str | None = None):
-        self.path = path or os.getenv("AGENTPROOF_DB", "agentproof.db")
+        default = "/tmp/agentproof.db" if os.getenv("VERCEL") else "agentproof.db"
+        self.path = path or os.getenv("AGENTPROOF_DB", default)
         self._init()
 
     def _connect(self):
@@ -68,9 +69,7 @@ class Store:
 
     def list_runs(self, limit: int = 50) -> list[RunRecord]:
         with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT payload FROM runs ORDER BY created_at DESC LIMIT ?", (limit,)
-            ).fetchall()
+            rows = conn.execute("SELECT payload FROM runs ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
         return [RunRecord.model_validate_json(r["payload"]) for r in rows]
 
     def seed_from_directory(self, directory: str | Path):
