@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 from typing import Any
 
@@ -36,11 +37,31 @@ def compare_runs(baseline: RunRecord, candidate: RunRecord) -> RunComparison:
     if baseline.pack_id != candidate.pack_id:
         raise ValueError("Runs must use the same evaluation pack")
 
+    # Fail closed: an intersection silently drops omitted cases and duplicates.
     bmap = {c.case_id: c for c in baseline.cases}
     cmap = {c.case_id: c for c in candidate.cases}
-    ids = sorted(set(bmap) & set(cmap))
+    if len(bmap) != len(baseline.cases) or len(cmap) != len(candidate.cases):
+        raise ValueError("Duplicate case IDs are not valid paired evidence")
+    if set(bmap) != set(cmap):
+        raise ValueError("Runs must contain exactly the same case IDs")
+    ids = sorted(bmap)
     if not ids:
         raise ValueError("Runs have no paired cases")
+    if (baseline.metrics.total_cases != len(baseline.cases)
+            or candidate.metrics.total_cases != len(candidate.cases)):
+        raise ValueError("Reported case counts do not match the evidence")
+    for case_id in ids:
+        # Canonical JSON distinguishes true from 1, unlike Python dict equality.
+        # Stored run records do not yet retain a grader/policy-version digest;
+        # this checks the case definition available in today's schema only.
+        def definition(case):
+            return json.dumps(
+                {"input": case.input, "expected": case.expected,
+                 "tags": sorted(case.tags), "failure_cost_eur": case.failure_cost_eur},
+                sort_keys=True, separators=(",", ":"), allow_nan=False,
+            )
+        if definition(bmap[case_id]) != definition(cmap[case_id]):
+            raise ValueError(f"Case definition changed for {case_id}")
 
     cases: list[ComparisonCase] = []
     fixes = regressions = new_critical = resolved_critical = 0
