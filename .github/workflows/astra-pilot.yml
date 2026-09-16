@@ -1,0 +1,32 @@
+name: ASTRA evidence pilot
+on:
+  pull_request:
+    paths: ['labs/astra-control-room/**', '.github/workflows/astra-pilot.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  local-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test, execute fixture and render evidence
+        working-directory: labs/astra-control-room
+        run: |
+          mkdir -p evidence
+          python -m unittest test_astra -v > evidence/unit-tests.txt 2>&1
+          cat evidence/unit-tests.txt
+          python astra.py demo --out evidence
+          python render.py
+          python -c "import json; from astra import score_pilot; assert score_pilot(json.load(open('pilot.json')))['verdict'] == 'NOT_MEASURED'"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: astra-local-proof-not-live-benchmark
+          path: |
+            labs/astra-control-room/evidence/
+            labs/astra-control-room/control-room.html

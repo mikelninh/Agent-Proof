@@ -1,0 +1,15 @@
+{
+  "schema": "astra-pilot-v1",
+  "description": "Unrun registration slots, not completed tasks. Freeze actual backlog tasks before the experiment.",
+  "task_ids": ["task-01", "task-02", "task-03", "task-04", "task-05", "task-06", "task-07", "task-08", "task-09", "task-10"],
+  "assumed_hourly_value_eur": null,
+  "records": [],
+  "record_template": {
+    "task_id": "task-01", "arm": "buzz", "evidence_kind": "live",
+    "accepted": false, "critical_failure": false, "unauthorised_action": false,
+    "evidence_complete": false, "watch_passed": false,
+    "human_minutes": null, "wall_minutes": null, "api_eur": null,
+    "compute_eur": null, "rework_minutes": null, "evidence_refs": [],
+    "notes": "Observed values only; human time includes setup/review/rework/allocated overhead. Aggregate all retries."
+  }
+}
