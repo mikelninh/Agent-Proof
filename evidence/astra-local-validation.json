@@ -1,0 +1,29 @@
+{
+  "scope": "local fixture/controller validation, not live agent or relay evidence",
+  "tests": 57,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "test_elapsed_seconds": 27.798,
+  "integration_scenarios": 10,
+  "integration_contracts_passed": 10,
+  "live_agent_runs": 0,
+  "buzz_relay_runs": 0,
+  "productivity_verdict": "HOLD_NO_LIVE_EVIDENCE",
+  "source_git_blob_shas": {
+    "agentproof/controlroom.py": "2f37a6cccb0c68b0434927acb545a73627f133b5",
+    "agentproof/controlroom_fixtures.py": "b9d951b464b8de0afdf162f9732310e5b0cbccca",
+    "agentproof/controlroom_metrics.py": "c1ef98c7770cb111122a2e7596721984e2019b53",
+    "tests/test_controlroom.py": "8aacb20b3588d17b09434842923cfbd2ce4b2290",
+    ".ai-build/CONTROLROOM_PILOT.md": "92f07b67c39e4ca3785f18195c50da71fb6175f5"
+  },
+  "browser_checks": {
+    "method": "rendered generated HTML using set_content; not a hosted URL",
+    "desktop": "1440x1100",
+    "mobile": "390x844",
+    "scenario_rows": 10,
+    "details_toggle": "passed",
+    "horizontal_page_overflow": false,
+    "page_errors": []
+  }
+}
