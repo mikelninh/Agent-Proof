@@ -390,7 +390,7 @@ def main() -> None:
     elif args.command == 'render':
         data = json.loads(args.input.read_text(encoding='utf-8'))
         # Escape script terminators from imported text.
-        payload = json.dumps(data, allow_nan=False).replace('<','\u003c').replace('>','\u003e').replace('&','\u0026')
+        payload = json.dumps(data, allow_nan=False).translate({60: chr(92) + 'u003c', 62: chr(92) + 'u003e', 38: chr(92) + 'u0026'})
         template = (ROOT/'dashboard.html').read_text(encoding='utf-8')
         args.output.write_text(template.replace('__REPORT_JSON__',payload),encoding='utf-8')
         print(args.output)
