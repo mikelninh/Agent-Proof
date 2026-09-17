@@ -6,7 +6,6 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-  models: read
   id-token: write
 concurrency:
   group: astra-company-delivery
@@ -15,9 +14,9 @@ jobs:
   operate:
     if: github.ref == 'refs/heads/astra/company-operations'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
       - name: Validate authority and evidence contracts
@@ -26,13 +25,34 @@ jobs:
         run: python -m pip install -e '.[dev]'
       - name: Test existing product
         run: python -m pytest
-      - name: Work assigned company jobs
+      - name: Install verified local inference runtime
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 2 --max-time 180 https://github.com/ollama/ollama/releases/download/v0.34.1/ollama-linux-amd64.tar.zst -o "$RUNNER_TEMP/ollama.tar.zst"
+          echo "f361dc3992ec07e4ad429f4bb2d10d4663ba2c295f9a9a688c7d52f4ba650034  $RUNNER_TEMP/ollama.tar.zst" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/ollama-runtime"
+          tar --zstd -xf "$RUNNER_TEMP/ollama.tar.zst" -C "$RUNNER_TEMP/ollama-runtime"
+          echo "$RUNNER_TEMP/ollama-runtime/bin" >> "$GITHUB_PATH"
+      - name: Start isolated text-only model
+        timeout-minutes: 6
         env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: python company/worker.py --max-jobs 4
+          OLLAMA_HOST: 127.0.0.1:11434
+          OLLAMA_MODELS: ${{ runner.temp }}/astra-models
+          OLLAMA_NUM_PARALLEL: '1'
+          OLLAMA_NO_CLOUD: '1'
+          OLLAMA_CONTEXT_LENGTH: '6144'
+        run: |
+          set -euo pipefail
+          nohup ollama serve > "$RUNNER_TEMP/ollama.log" 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:11434/api/version && break || sleep 1; done
+          curl -fsS http://127.0.0.1:11434/api/version
+          ollama pull qwen3.5:2b
+      - name: Work assigned company jobs
+        run: python company/run_local.py --max-jobs 4
       - name: Preserve execution receipts (no deliverable bodies or secrets)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: astra-company-run
           path: company-evidence/
