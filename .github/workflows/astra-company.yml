@@ -1,0 +1,40 @@
+name: ASTRA Company
+on:
+  push:
+    branches: ['astra/company-operations']
+    paths: ['company/**', '.github/workflows/astra-company.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  models: read
+  id-token: write
+concurrency:
+  group: astra-company-delivery
+  cancel-in-progress: false
+jobs:
+  operate:
+    if: github.ref == 'refs/heads/astra/company-operations'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate authority and evidence contracts
+        run: node --test company/core.test.mjs
+      - name: Install existing evaluation engine
+        run: python -m pip install -e '.[dev]'
+      - name: Test existing product
+        run: python -m pytest
+      - name: Work assigned company jobs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python company/worker.py --max-jobs 4
+      - name: Preserve execution receipts (no deliverable bodies or secrets)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: astra-company-run
+          path: company-evidence/
+          if-no-files-found: ignore
+          retention-days: 14
