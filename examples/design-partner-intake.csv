@@ -1,0 +1,2 @@
+case_id,input_text,expected_decision,critical_if_wrong,segment,estimated_failure_cost_eur,notes
+case-001,"Example customer or workflow input","expected_action",false,"example-segment",0,"Replace this row with a representative case"
