@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 
 from .adversarial import generate_adversarial_drafts
+from .audit import DEFAULT_AUDIT_DIMENSIONS, assess_audit_pack
 from .builtin_packs import builtin_pack
 from .support_pack import support_ops_pack
 from .compare import compare_runs
@@ -109,6 +110,16 @@ def main():
     csvp.add_argument("--critical", help="Critical mismatch expected:actual")
     csvp.add_argument("--output", required=True)
 
+    audit = sub.add_parser("audit-check", help="Check whether an eval pack has minimum Agent Trust Audit coverage")
+    audit.add_argument("pack", help="JSON path or built-in pack id")
+    audit.add_argument("--min-cases", type=int, default=30)
+    audit.add_argument(
+        "--dimensions",
+        default=",".join(DEFAULT_AUDIT_DIMENSIONS),
+        help="Comma-separated risk dimensions required as risk:<dimension> case tags",
+    )
+    audit.add_argument("--output")
+
     adv = sub.add_parser("adversarial", help="Generate adversarial drafts for human review")
     adv.add_argument("pack", help="JSON path or built-in pack id")
     adv.add_argument("--limit", type=int, default=16)
@@ -126,6 +137,18 @@ def main():
         assert pack is not None
         Path(args.output).write_text(pack.model_dump_json(indent=2), encoding="utf-8")
         print(f"Wrote {len(pack.cases)} deterministic cases to {args.output}")
+        return
+    if args.command == "audit-check":
+        pack = _load_pack(args.pack)
+        dimensions = tuple(x.strip() for x in args.dimensions.split(",") if x.strip())
+        assessment = assess_audit_pack(pack, min_cases=args.min_cases, required_dimensions=dimensions)
+        payload = assessment.model_dump()
+        rendered = json.dumps(payload, indent=2)
+        print(rendered)
+        if args.output:
+            Path(args.output).write_text(rendered + "\n", encoding="utf-8")
+        if not assessment.ready:
+            raise SystemExit(2)
         return
     if args.command == "adversarial":
         pack = _load_pack(args.pack)
