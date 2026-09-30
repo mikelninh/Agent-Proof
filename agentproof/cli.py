@@ -9,7 +9,7 @@ from pathlib import Path
 from .adversarial import generate_adversarial_drafts
 from .audit import DEFAULT_AUDIT_DIMENSIONS, assess_audit_pack
 from .builtin_packs import builtin_pack
-from .support_pack import support_ops_pack
+from .support_pack import support_ops_pack, support_ops_trust_audit_pack
 from .compare import compare_runs
 from .csvpack import pack_from_csv
 from .models import AgentConfig, Economics, EvalPack, GatePolicy, RunRecord, RunRequest
@@ -24,10 +24,12 @@ def _load_pack(value: str) -> EvalPack:
         return EvalPack.model_validate_json(path.read_text(encoding="utf-8"))
     if value == "support-ops-v1":
         return support_ops_pack()
+    if value == "support-ops-trust-audit-v1":
+        return support_ops_trust_audit_pack()
     pack = builtin_pack(value)
     if pack:
         return pack
-    raise SystemExit(f"Pack not found: {value}. Use a JSON path or built-in id support-ops-v1 / fraud-analyst-v1.")
+    raise SystemExit(f"Pack not found: {value}. Use a JSON path or built-in id support-ops-v1 / support-ops-trust-audit-v1 / fraud-analyst-v1.")
 
 
 def _agent(args) -> AgentConfig:
@@ -98,7 +100,7 @@ def main():
     compare.add_argument("--github-summary", action="store_true")
 
     demo = sub.add_parser("demo-pack", help="Export a built-in deterministic pack")
-    demo.add_argument("pack_id", choices=["support-ops-v1", "fraud-analyst-v1"])
+    demo.add_argument("pack_id", choices=["support-ops-v1", "support-ops-trust-audit-v1", "fraud-analyst-v1"])
     demo.add_argument("--output", required=True)
 
     csvp = sub.add_parser("pack-csv", help="Turn a historical CSV export into an eval pack")
@@ -133,7 +135,12 @@ def main():
         print(f"Wrote {len(pack.cases)} cases to {args.output}")
         return
     if args.command == "demo-pack":
-        pack = support_ops_pack() if args.pack_id == "support-ops-v1" else builtin_pack(args.pack_id)
+        if args.pack_id == "support-ops-v1":
+            pack = support_ops_pack()
+        elif args.pack_id == "support-ops-trust-audit-v1":
+            pack = support_ops_trust_audit_pack()
+        else:
+            pack = builtin_pack(args.pack_id)
         assert pack is not None
         Path(args.output).write_text(pack.model_dump_json(indent=2), encoding="utf-8")
         print(f"Wrote {len(pack.cases)} deterministic cases to {args.output}")
