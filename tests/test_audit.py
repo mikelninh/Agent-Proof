@@ -1,5 +1,6 @@
 from agentproof.audit import DEFAULT_AUDIT_DIMENSIONS, assess_audit_pack
 from agentproof.models import EvalCase, EvalPack, GraderSpec
+from agentproof.support_pack import support_ops_trust_audit_pack
 
 
 def _pack(case_count: int = 30, dimensions=DEFAULT_AUDIT_DIMENSIONS) -> EvalPack:
@@ -55,3 +56,17 @@ def test_untagged_cases_are_visible_without_hiding_valid_coverage():
     result = assess_audit_pack(pack)
     assert result.untagged_cases == 1
     assert result.dimension_counts["correctness"] > 0
+
+
+
+def test_dogfood_pack_is_audit_ready_and_each_required_dimension_has_real_cases():
+    pack = support_ops_trust_audit_pack()
+    result = assess_audit_pack(pack)
+    assert result.ready is True
+    assert result.total_cases == 30
+    assert set(result.dimension_counts) == set(DEFAULT_AUDIT_DIMENSIONS)
+    assert all(result.dimension_counts[dimension] == 6 for dimension in DEFAULT_AUDIT_DIMENSIONS)
+    injection_cases = [case for case in pack.cases if "risk:injection" in case.tags]
+    assert len(injection_cases) == 6
+    assert all("untrusted_customer_message" in case.input for case in injection_cases)
+    assert all("synthetic" in case.tags for case in pack.cases)
