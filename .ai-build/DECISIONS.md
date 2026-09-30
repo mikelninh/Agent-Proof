@@ -20,3 +20,6 @@ Use Wilson intervals and an exact McNemar/binomial paired test implemented in th
 
 ## D007 — Offline A/B demo
 Ship a deliberately imperfect baseline and a stronger candidate so the entire regression workflow is testable without an API key.
+
+## D008 — Audit-ready means structural risk coverage, not certification
+A commercial Agent Trust Audit must not be built from happy-path accuracy cases alone. The starter contract requires at least 30 cases and explicit case-tag coverage for correctness, boundary behaviour, injection, recovery and approval. This gate proves minimum test-surface structure only; representativeness, domain truth and production safety still require human/domain validation.
